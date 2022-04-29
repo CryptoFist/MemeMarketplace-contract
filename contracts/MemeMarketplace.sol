@@ -116,6 +116,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       OrderType.MakerOrder calldata maker_,
       address taker_
    ) external payable nonReentrant {
+      checkScammer();
       require (msg.value >= maker_.price, 'not enough money');
       _matchMakerWithTakerByETHAndWETH(maker_, taker_, true);
    }
@@ -124,6 +125,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       OrderType.MakerOrder calldata maker_,
       address taker_
    ) external nonReentrant {
+      checkScammer();
       _matchMakerWithTakerByETHAndWETH(maker_, taker_, false);
    }
 
@@ -131,14 +133,9 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       OrderType.MakerOrder calldata maker_,
       OrderType.MakerOrder calldata taker_
    ) external nonReentrant {
-      bytes32 makerHash = OrderType.hash(maker_);
-      bytes32 takerHash = OrderType.hash(taker_);
-
-      _validateOrder(maker_, makerHash);
-      _validateOrder(taker_, takerHash);
-
-      // WETH.safeTransferFrom(taker_.taker, address(this), maker_.price);
-      // _transferFeesAndFunds(to_, tokenOwner_, amount_, isETH_);
+      checkScammer();
+      _matchMakerWithTakerByETHAndWETH(maker_, taker_.maker, false);
+      _matchMakerWithTakerByETHAndWETH(taker_, maker_.maker, false);
    }
 
    function _matchMakerWithTakerByETHAndWETH(
@@ -149,20 +146,24 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       bytes32 hash = OrderType.hash(maker_);
       _validateOrder(maker_, hash);
 
-      _transferFeesAndFunds(
-         maker_.maker, 
-         royaltyReceiver[maker_.tokenAddress][maker_.tokenID], 
-         maker_.price, 
-         isETH_
-      );
+      if (maker_.price > 0) {
+         _transferFeesAndFunds(
+            maker_.maker, 
+            royaltyReceiver[maker_.tokenAddress][maker_.tokenID], 
+            maker_.price, 
+            isETH_
+         );
+      }
 
-      _transferNonFundgibleToken(
-         maker_.maker, 
-         taker_, 
-         maker_.tokenAddress, 
-         maker_.tokenID, 
-         maker_.tokenAmount
-      );
+      if (maker_.tokenAddress != address(0)) {
+         _transferNonFundgibleToken(
+            maker_.maker, 
+            taker_, 
+            maker_.tokenAddress, 
+            maker_.tokenID, 
+            maker_.tokenAmount
+         );
+      }
    }
 
    function _transferFeesAndFunds(
@@ -209,8 +210,6 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       bytes32 orderHash_
    ) internal view {
       require (maker_.maker != address(0), 'wrong maker');
-      require (maker_.price > 0, 'wrong price');
-      require (Address.isContract(maker_.tokenAddress), 'wrong token address');
 
       SignatureChecker.verify(
          orderHash_, 
