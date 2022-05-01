@@ -22,7 +22,7 @@ library SignatureChecker {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) internal view returns (address) {
+    ) internal pure returns (address) {
         // https://ethereum.stackexchange.com/questions/83174/is-it-best-practice-to-check-signature-malleability-in-ecrecover
         // https://crypto.iacr.org/2019/affevents/wac/medias/Heninger-BiasedNonceSense.pdf
         require(
@@ -34,7 +34,6 @@ library SignatureChecker {
 
         // If the signature is valid (and not malleable), return the signer address
         address signer = ecrecover(hash, v, r, s);
-        console.log('signer is ', signer);
         require(signer != address(0), "Signature: Invalid signer");
 
         return signer;

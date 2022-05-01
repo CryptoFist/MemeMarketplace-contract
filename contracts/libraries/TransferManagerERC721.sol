@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 import "../interfaces/ITransferManagerNFT.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "hardhat/console.sol";
 
 contract TransferManagerERC721 is Ownable, ITransferManagerNFT {
     address private MemeMarketplace;
@@ -29,8 +30,9 @@ contract TransferManagerERC721 is Ownable, ITransferManagerNFT {
         uint256
     ) external override {
         require(msg.sender == MemeMarketplace, "Transfer: Only Meme Marketplace");
+
         IERC721 token = IERC721(collection);
-        token.safeTransferFrom(from, MemeMarketplace, tokenId);
-        token.safeTransferFrom(MemeMarketplace, to, tokenId);
+        token.transferFrom(from, address(this), tokenId);
+        token.transferFrom(address(this), to, tokenId);
     }
 }

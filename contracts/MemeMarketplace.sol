@@ -126,12 +126,11 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    }
 
    function buyNonFindgibleToken(
-      OrderType.MakerOrder calldata maker_,
-      address taker_
+      OrderType.MakerOrder calldata maker_
    ) external payable nonReentrant {
       checkScammer();
       require (msg.value >= maker_.price, 'not enough money');
-      _matchMakerWithTakerByETHAndWETH(maker_, taker_, true);
+      _matchMakerWithTakerByETHAndWETH(maker_, msg.sender, true);
    }
 
    function closeAuction(
@@ -150,51 +149,6 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       _matchMakerWithTakerByETHAndWETH(maker_, taker_.maker, false);
       _matchMakerWithTakerByETHAndWETH(taker_, maker_.maker, false);
    }
-
-
-
-
-
-
-
-   function testSign(
-      OrderType.MakerOrder calldata maker_
-   ) external view returns(bool) {
-      bytes32 hash = OrderType.hash(maker_);
-      return SignatureChecker.verify(
-         hash, 
-         maker_.maker, 
-         maker_.v, 
-         maker_.r, 
-         maker_.s,
-         DOMAIN_SEPARATOR
-      );
-   }
-
-   function testGet(OrderType.MakerOrder calldata maker_) external view returns(bytes32) {
-      return OrderType.hash(maker_);
-   }
-
-   function getEncodeData() external pure returns(bytes32[] memory){
-      bytes32[] memory result = new bytes32[](4);
-      result[0] = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
-      result[1] = keccak256("MemeMarketplace");
-      result[2] = keccak256(bytes("1"));
-      result[3] = keccak256("MakerOrder(address maker,address tokenAddress,uint256 tokenID,uint256 price,uint256 tokenAmount,bool isETH)");
-
-      return result;
-   }
-
-
-
-
-
-
-
-
-
-
-
 
    function _matchMakerWithTakerByETHAndWETH(
       OrderType.MakerOrder calldata maker_,

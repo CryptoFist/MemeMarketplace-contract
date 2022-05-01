@@ -67,18 +67,27 @@ describe('MemeMarketplace', function () {
          isETH: true
       };
 
-      console.log(await this.marketplace.getEncodeData());
-
       const signedMakeOrder = await signMakeOrder(
          this.minter1,
          this.marketplace.address,
          makeOrder
       );
 
-      console.log(await this.marketplace.testSign(
-         signedMakeOrder
-      ));
-      // console.log(await this.marketplace.testGet(signedMakeOrder));
+      let oldETHValue = smallNum(await ethers.provider.getBalance(this.minter1.address));
+      let oldNFTValue = await this.Meme721.balanceOf(this.bider1.address);
+
+      await this.Meme721.connect(this.minter1).setApprovalForAll(this.ERC721Manager.address, true);
+      await this.marketplace.connect(this.bider1).buyNonFindgibleToken(
+         signedMakeOrder,
+         {value: bigNum(1)}
+      );
+
+      let newETHValue = smallNum(await ethers.provider.getBalance(this.minter1.address));
+      let newNFTValue = await this.Meme721.balanceOf(this.bider1.address);
+
+      expect(newNFTValue - oldNFTValue).to.equal(1);
+      expect(newETHValue - oldETHValue).to.greaterThan(0.97);
+
    })
 
 })
