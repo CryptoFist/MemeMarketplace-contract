@@ -4,7 +4,7 @@ pragma solidity ^0.8.4;
 import "hardhat/console.sol";
 
 library OrderType {
-   bytes32 internal constant MAKER_ORDER_HASH = 0x81f83d2150726a30ef219e10fda1e261aa32584f7a32dd99f1b4f6e6c5073a8f;
+   bytes32 internal constant MAKER_ORDER_HASH = 0xfb2ead034c97146168863a628813a755b15941a26bef3441ae849c4bdd6b7a55;
    
    struct MakerOrder {
       address maker;

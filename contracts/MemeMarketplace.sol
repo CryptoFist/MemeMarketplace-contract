@@ -180,7 +180,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       result[0] = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
       result[1] = keccak256("MemeMarketplace");
       result[2] = keccak256(bytes("1"));
-      result[3] = keccak256("MakerOrder(address maker, address tokenAddress, uint256 tokenID, uint256 price, uint256 tokenAmount, bool isETH)");
+      result[3] = keccak256("MakerOrder(address maker,address tokenAddress,uint256 tokenID,uint256 price,uint256 tokenAmount,bool isETH)");
 
       return result;
    }
