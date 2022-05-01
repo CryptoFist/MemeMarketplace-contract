@@ -3,21 +3,22 @@ pragma solidity ^0.8.4;
 
 import "../interfaces/ITransferManagerNFT.sol";
 import "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TransferManagerERC1155 is ITransferManagerNFT {
-    address public immutable MemeMarketplace;
+contract TransferManagerERC1155 is Ownable, ITransferManagerNFT {
+    address public MemeMarketplace;
 
-    constructor(address marketplaceAddress_) {
+    function setMarketPlace(address marketplaceAddress_) external onlyOwner {
         MemeMarketplace = marketplaceAddress_;
     }
 
     function balanceOf(
-        address collection,
-        address owner,
-        uint256 tokenID
+        address collection_,
+        address owner_,
+        uint256 tokenID_
     ) external view override returns(uint256) {
-        IERC1155 token = IERC1155(collection);
-        return token.balanceOf(owner, tokenID);
+        IERC1155 token = IERC1155(collection_);
+        return token.balanceOf(owner_, tokenID_);
     }
 
     function transferNonFungibleToken(

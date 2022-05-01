@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.8.4;
+import "hardhat/console.sol";
 
 library OrderType {
-   bytes32 internal constant MAKER_ORDER_HASH = 0x40261ade532fa1d2c7293df30aaadb9b3c616fae525a0b56d3d411c841a85028;
+   bytes32 internal constant MAKER_ORDER_HASH = 0x81f83d2150726a30ef219e10fda1e261aa32584f7a32dd99f1b4f6e6c5073a8f;
    
    struct MakerOrder {
       address maker;

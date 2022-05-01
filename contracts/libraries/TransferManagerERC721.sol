@@ -3,21 +3,22 @@ pragma solidity ^0.8.4;
 
 import "../interfaces/ITransferManagerNFT.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract TransferManagerERC721 is ITransferManagerNFT {
-    address public immutable MemeMarketplace;
+contract TransferManagerERC721 is Ownable, ITransferManagerNFT {
+    address private MemeMarketplace;
 
-    constructor(address marketplaceAddress_) {
+    function setMarketPlace(address marketplaceAddress_) external onlyOwner {
         MemeMarketplace = marketplaceAddress_;
     }
 
     function balanceOf(
-        address collection,
-        address owner,
-        uint256 tokenID
+        address collection_,
+        address owner_,
+        uint256 tokenID_
     ) external view override returns(uint256) {
-        IERC721 token = IERC721(collection);
-        return token.ownerOf(tokenID) == owner ? 1 : 0;
+        IERC721 token = IERC721(collection_);
+        return token.ownerOf(tokenID_) == owner_ ? 1 : 0;
     }
 
     function transferNonFungibleToken(

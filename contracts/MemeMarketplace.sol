@@ -9,6 +9,7 @@ import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "hardhat/console.sol";
 
 import "./interfaces/IMemeCurrencyManager.sol";
 import "./interfaces/IMemeStrategyManager.sol";
@@ -30,6 +31,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
 
    bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
    bytes32 public constant MODERATE_ROLE = keccak256("MODERATE_ROLE");
+   bytes32 public immutable DOMAIN_SEPARATOR;
 
    // ERC721 interfaceID
     bytes4 public constant INTERFACE_ID_ERC721 = 0x80ac58cd;
@@ -55,6 +57,17 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       ERC1155Manager = ERC1155Manager_;
       WETH = IERC20(WETH_);
       fundAddress = msg.sender;
+      // Calculate the domain separator
+      DOMAIN_SEPARATOR = keccak256(
+         abi.encode(
+               0x8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f, // keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)")
+               0x4fc79a4245e4aacb07164aa0d7b9e2449d3663f61446b7a4ff0af619df668406, // keccak256("MemeMarketplace")
+               0xc89efdaa54c0f20c7adf612882df0950f5a951637e0307cdcb4c672f298b8bc6, // keccak256(bytes("1")) for versionId = 1
+               block.chainid,
+               address(this)
+         )
+      );
+
       _setupRole(OWNER_ROLE, msg.sender);
       _setupRole(OWNER_ROLE, multisig_);
    }
@@ -138,6 +151,51 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       _matchMakerWithTakerByETHAndWETH(taker_, maker_.maker, false);
    }
 
+
+
+
+
+
+
+   function testSign(
+      OrderType.MakerOrder calldata maker_
+   ) external view returns(bool) {
+      bytes32 hash = OrderType.hash(maker_);
+      return SignatureChecker.verify(
+         hash, 
+         maker_.maker, 
+         maker_.v, 
+         maker_.r, 
+         maker_.s,
+         DOMAIN_SEPARATOR
+      );
+   }
+
+   function testGet(OrderType.MakerOrder calldata maker_) external view returns(bytes32) {
+      return OrderType.hash(maker_);
+   }
+
+   function getEncodeData() external pure returns(bytes32[] memory){
+      bytes32[] memory result = new bytes32[](4);
+      result[0] = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+      result[1] = keccak256("MemeMarketplace");
+      result[2] = keccak256(bytes("1"));
+      result[3] = keccak256("MakerOrder(address maker, address tokenAddress, uint256 tokenID, uint256 price, uint256 tokenAmount, bool isETH)");
+
+      return result;
+   }
+
+
+
+
+
+
+
+
+
+
+
+
    function _matchMakerWithTakerByETHAndWETH(
       OrderType.MakerOrder calldata maker_,
       address taker_,
@@ -202,6 +260,8 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
          revert("not Non Fundgible Token");
       }
 
+      require (currencyManager.isCurrencyWhitelisted(tokenAddress_), 'not added token');
+
       manager.transferNonFungibleToken(tokenAddress_, from_, to_, tokenID_, tokenAmount_);
    }
 
@@ -216,7 +276,8 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
          maker_.maker, 
          maker_.v, 
          maker_.r, 
-         maker_.s
+         maker_.s,
+         DOMAIN_SEPARATOR
       );
    }
 }
