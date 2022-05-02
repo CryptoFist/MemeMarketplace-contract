@@ -5,23 +5,27 @@ pragma solidity ^0.8.4;
 import './ERC721A.sol';
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "./interfaces/IMemeMarketplace.sol";
 import 'hardhat/console.sol';
 
 contract Meme721 is ReentrancyGuard, ERC721A, Ownable {
    mapping(uint256 => string) private tokenURIs;
-   uint256 private price;
    address private fundAddress;
    address private routerAddress;
+   address private marketplaceAddress;
+   bytes32 public constant OWNER_ROLE = keccak256("OWNER_ROLE");
 
    event minted(string _hash, uint256 _id);
 
    constructor (
       string memory name_, 
-      string memory symbol_,
-      uint256 price_
+      string memory symbol_
    ) ERC721A(name_, symbol_) {
-      price = price_;
       fundAddress = _msgSender();
+   }
+
+   function setMarketplaceAddress(address marketplace_) external onlyOwner {
+      marketplaceAddress = marketplace_;
    }
 
    function _setTokenURI(uint256 tokenID_, string memory tokenURI_) internal {
@@ -32,19 +36,15 @@ contract Meme721 is ReentrancyGuard, ERC721A, Ownable {
 		fundAddress = _addr;
 	}
 
-   function setPrice(uint256 price_) public onlyOwner {
-		price = price_;
-	}
-
    function tokenURI(uint256 tokenID_) public view virtual override returns(string memory) {
 	  require(_exists(tokenID_));
 	  string memory _tokenURI = tokenURIs[tokenID_];
 	  return _tokenURI;
    }
 
-   function mintNFT(string[] memory tokenURIs_, address owner_) external onlyOwner {
+   function mintNFT(string[] memory tokenURIs_, address owner_) external nonReentrant {
+      require (msg.sender == marketplaceAddress, 'no permission');
       uint256 quantity_ = tokenURIs_.length;
-		require(quantity_ > 0, "Amount must be greater than zero");
 
 		uint256 newId = _currentIndex;
       uint256[] memory tokenIDs = new uint256[](quantity_);
@@ -56,10 +56,10 @@ contract Meme721 is ReentrancyGuard, ERC721A, Ownable {
 		}
 
       _safeMint(owner_, quantity_);
-   }
 
-   function getMintPrice() external view returns (uint256) {
-      return price;
+      IMemeMarketplace(marketplaceAddress).addCollection(
+         owner_, address(this), tokenIDs
+      );
    }
 
    function withdrawFund() public onlyOwner {

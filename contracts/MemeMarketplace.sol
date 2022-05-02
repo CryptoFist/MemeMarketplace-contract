@@ -9,11 +9,13 @@ import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
 import "hardhat/console.sol";
 
-import "./interfaces/IMemeCurrencyManager.sol";
 import "./interfaces/IMemeStrategyManager.sol";
 import "./interfaces/ITransferManagerNFT.sol";
+import "./interfaces/IMeme721.sol";
+import "./interfaces/IMeme1155.sol";
 import "./libraries/OrderType.sol";
 import "./libraries/SignatureChecker.sol";
 
@@ -21,10 +23,11 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    using SafeERC20 for IERC20;
 
    IERC20 public immutable WETH;
-   IMemeCurrencyManager private currencyManager;
    IMemeStrategyManager private strategyManager;
    address private ERC721Manager;
    address private ERC1155Manager;
+   address private meme721;
+   address private meme1155;
    address private fundAddress;
 
    mapping(address => mapping(uint256 => address)) private royaltyReceiver;
@@ -33,28 +36,33 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    bytes32 public constant MODERATE_ROLE = keccak256("MODERATE_ROLE");
    bytes32 public immutable DOMAIN_SEPARATOR;
 
-   // ERC721 interfaceID
-    bytes4 public constant INTERFACE_ID_ERC721 = 0x80ac58cd;
-    // ERC1155 interfaceID
-    bytes4 public constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
+   uint256 public meme721Price = 1e15;
+   uint256 public meme1155Price = 1e15;
 
-    uint16 private ROYALTY_MIN = 5 * 1e2;     // over 1e3, 500 means 0.5%
-    uint16 private ROYALTY_MAX = 1 * 1e4;     // over 1e3, 10000 means 10%
-    uint16 private TX_FEE = 2 * 1e3;          // over 1e3, 2000 means 2%
-    uint16 private royaltyRate = ROYALTY_MIN;   // over 1e3, 500 means 0.5%
+   // ERC721 interfaceID
+   bytes4 public constant INTERFACE_ID_ERC721 = 0x80ac58cd;
+   // ERC1155 interfaceID
+   bytes4 public constant INTERFACE_ID_ERC1155 = 0xd9b67a26;
+
+   uint16 private ROYALTY_MIN = 5 * 1e2;     // over 1e3, 500 means 0.5%
+   uint16 private ROYALTY_MAX = 1 * 1e4;     // over 1e3, 10000 means 10%
+   uint16 private TX_FEE = 2 * 1e3;          // over 1e3, 2000 means 2%
+   uint16 private royaltyRate = ROYALTY_MIN;   // over 1e3, 500 means 0.5%
 
    constructor(
-      address currencyManager_,
       address strategyManager_,
       address ERC721Manager_,
       address ERC1155Manager_,
+      address ERC721Address_,
+      address ERC1155Address_,
       address WETH_,
       address multisig_
    ) {
-      currencyManager = IMemeCurrencyManager(currencyManager_);
       strategyManager = IMemeStrategyManager(strategyManager_);
       ERC721Manager = ERC721Manager_;
       ERC1155Manager = ERC1155Manager_;
+      meme721 = ERC721Address_;
+      meme1155 = ERC1155Address_;
       WETH = IERC20(WETH_);
       fundAddress = msg.sender;
       // Calculate the domain separator
@@ -81,6 +89,14 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       require (strategyManager.isStrategyblacklisted(msg.sender) == false, 'scammer address');
    }
 
+   function setMeme721Price(uint256 newPrice_) external onlyOwner {
+      meme721Price = newPrice_;
+   }
+
+   function setMeme1155Price(uint256 newPrice_) external onlyOwner {
+      meme1155Price = newPrice_;
+   }
+
    function setRoyaltyReceiver(
       address owner_,
       address tokenAddress_,
@@ -103,14 +119,30 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       strategyManager.removeStrategy(user_);
    }
 
-   function addCollection(address tokenAddress_) external {
+   function addCollection(
+      address owner_,
+      address tokenAddress_, 
+      uint256[] memory tokenIDs_
+   ) public {
       checkScammer();
-      currencyManager.addCurrency(tokenAddress_);
+      if (msg.sender != meme721 && msg.sender != meme1155) {
+        require (owner_ == msg.sender, 'wrong user') ;
+      }
+
+      for (uint256 i = 0; i < tokenIDs_.length; i ++) {
+         require (royaltyReceiver[tokenAddress_][tokenIDs_[i]] == address(0), 'already added');
+         royaltyReceiver[tokenAddress_][tokenIDs_[i]] = owner_;
+      }
    }
 
-   function removeCollection(address tokenAddress_) external {
+   function removeCollection(
+      address tokenAddress_, 
+      uint256[] calldata tokenIDs_
+   ) external {
       checkPermission();
-      currencyManager.removeCurrency(tokenAddress_);
+      for (uint256 i = 0; i < tokenIDs_.length; i ++) {
+         royaltyReceiver[tokenAddress_][tokenIDs_[i]] = address(0);
+      }
    }
 
    /**
@@ -123,6 +155,26 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
 
    function getRoyalty() external view returns(uint16) {
       return royaltyRate;
+   }
+
+   function mintMeme721(
+      string[] calldata tokenURIs_
+   ) external payable {
+      uint256 amount = tokenURIs_.length;
+      require(amount > 0, "Amount must be greater than zero");
+      require(amount * meme721Price <= msg.value, 'not enough money');
+
+      IMeme721(meme721).mintNFT(tokenURIs_, msg.sender);
+   }
+
+   function mintMeme1155(
+      string calldata tokenURI_,
+      uint256 amount_
+   ) external payable {
+      require(amount_ > 0, "Amount must be greater than zero");
+      require(amount_ * meme1155Price <= msg.value, 'not enough money');
+
+      IMeme1155(meme1155).mintNFT(msg.sender, tokenURI_, amount_);
    }
 
    function buyNonFindgibleToken(
@@ -208,13 +260,11 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       if (IERC165(tokenAddress_).supportsInterface(INTERFACE_ID_ERC721)) {
          manager = ITransferManagerNFT(ERC721Manager);
          require (tokenAmount_ == 1, 'wrong amount');
-      } else if (IERC165(tokenAddress_).supportsInterface(INTERFACE_ID_ERC721)) {
+      } else if (IERC165(tokenAddress_).supportsInterface(INTERFACE_ID_ERC1155)) {
          manager = ITransferManagerNFT(ERC1155Manager);
       } else {
          revert("not Non Fundgible Token");
       }
-
-      require (currencyManager.isCurrencyWhitelisted(tokenAddress_), 'not added token');
 
       manager.transferNonFungibleToken(tokenAddress_, from_, to_, tokenID_, tokenAmount_);
    }
