@@ -47,7 +47,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    uint16 private ROYALTY_MIN = 5 * 1e2;     // over 1e3, 500 means 0.5%
    uint16 private ROYALTY_MAX = 1 * 1e4;     // over 1e3, 10000 means 10%
    uint16 private TX_FEE = 2 * 1e3;          // over 1e3, 2000 means 2%
-   uint16 private royaltyRate = ROYALTY_MIN;   // over 1e3, 500 means 0.5%
+   uint16 public royaltyRate = ROYALTY_MIN;   // over 1e3, 500 means 0.5%
 
    constructor(
       address strategyManager_,
@@ -97,14 +97,6 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       meme1155Price = newPrice_;
    }
 
-   function setRoyaltyReceiver(
-      address owner_,
-      address tokenAddress_,
-      uint256 tokenID_
-   ) external onlyRole(OWNER_ROLE) {
-      royaltyReceiver[tokenAddress_][tokenID_] = owner_;
-   }
-
    function setFundAddress(address fundAddress_) external onlyRole(OWNER_ROLE) {
       fundAddress = fundAddress_;
    }
@@ -126,7 +118,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    ) public {
       checkScammer();
       if (msg.sender != meme721 && msg.sender != meme1155) {
-        require (owner_ == msg.sender, 'wrong user') ;
+        require (owner_ == msg.sender, 'wrong user');
       }
 
       for (uint256 i = 0; i < tokenIDs_.length; i ++) {
@@ -151,10 +143,6 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
    function setRoyalty(uint16 royalty_) external onlyRole(OWNER_ROLE) {
       require (royalty_ >= ROYALTY_MIN && royalty_ <= ROYALTY_MAX, 'not proper rate');
       royaltyRate = royalty_;
-   }
-
-   function getRoyalty() external view returns(uint16) {
-      return royaltyRate;
    }
 
    function mintMeme721(
@@ -185,12 +173,11 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       _matchMakerWithTakerByETHAndWETH(maker_, msg.sender, true);
    }
 
-   function closeAuction(
-      OrderType.MakerOrder calldata maker_,
-      address taker_
+   function matchAuction(
+      OrderType.MakerOrder calldata maker_
    ) external nonReentrant {
       checkScammer();
-      _matchMakerWithTakerByETHAndWETH(maker_, taker_, false);
+      _matchMakerWithTakerByETHAndWETH(maker_, msg.sender, false);
    }
 
    function acceptOffer(
@@ -198,6 +185,7 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       OrderType.MakerOrder calldata taker_
    ) external nonReentrant {
       checkScammer();
+      require (msg.sender == taker_.maker, 'wrong caller');
       _matchMakerWithTakerByETHAndWETH(maker_, taker_.maker, false);
       _matchMakerWithTakerByETHAndWETH(taker_, maker_.maker, false);
    }
@@ -210,7 +198,11 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
       bytes32 hash = OrderType.hash(maker_);
       _validateOrder(maker_, hash);
 
+      require (royaltyReceiver[maker_.tokenAddress][maker_.tokenID] != address(0), 'not added token');
       if (maker_.price > 0) {
+         if (maker_.isETH == false) {
+            WETH.transferFrom(taker_, address(this), maker_.price);
+         }
          _transferFeesAndFunds(
             maker_.maker, 
             royaltyReceiver[maker_.tokenAddress][maker_.tokenID], 
@@ -284,4 +276,14 @@ contract MemeMarketplace is Ownable, AccessControlEnumerable, ReentrancyGuard {
          DOMAIN_SEPARATOR
       );
    }
+
+   function withDraw() external onlyRole(OWNER_ROLE) {
+      uint256 ETHBal = address(this).balance;
+      uint256 WETHBal = WETH.balanceOf(address(this));
+
+      payable(fundAddress).transfer(ETHBal);
+      WETH.transfer(fundAddress, WETHBal);
+   }
+
+   receive() external payable { }
 }

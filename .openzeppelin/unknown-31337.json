@@ -2,7 +2,7 @@
   "manifestVersion": "3.2",
   "admin": {
     "address": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
-    "txHash": "0xbd687194d09800d6fde2beb689e5f9d3c55f8b492094afd6100725bc088bae58"
+    "txHash": "0x6ba4d735aaf19aa01ffbd225dc8b34a96ad16b882d338f56b1a27c3037cabb55"
   },
   "proxies": [
     {
@@ -12,14 +12,14 @@
     },
     {
       "address": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
-      "txHash": "0x5f21949ca0e8b1c9555a69ee4d485160f5a18e27b9fd00665524726e85f4c2f8",
+      "txHash": "0x01adf9dc0ca9bb819516c1792c49e46b78ad7afbadd032f33113907de1a37fff",
       "kind": "transparent"
     }
   ],
   "impls": {
-    "f71989de6f343c7b46ebe6245204e3c9e4f03880f30fe32cbeb98ffe5bc5882b": {
+    "6bbbdbe361f83cefa2666d018c88d625acf7de78a7c24857a90c4b83abfafaf1": {
       "address": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
-      "txHash": "0xc0c86493930933fd8e10c670a36fa85c44cd48ae6da173248363794550cc3ac0",
+      "txHash": "0xaa1bd4c09b89209698ead3af84bbc9ad490532a0f5d163068e21a5e94fe47991",
       "layout": {
         "storage": [
           {
@@ -108,7 +108,7 @@
             "slot": "251",
             "type": "t_struct(AddressSet)6230_storage",
             "contract": "MemeStrategyManager",
-            "src": "contracts\\MemeStrategyManager.sol:12"
+            "src": "contracts\\MemeStrategyManager.sol:16"
           }
         ],
         "types": {

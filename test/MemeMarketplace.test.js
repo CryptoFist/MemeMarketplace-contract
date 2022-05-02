@@ -17,7 +17,10 @@ describe('MemeMarketplace', function () {
          this.minter2,
          this.bider1,
          this.bider2,
-         this.multisig
+         this.multisig,
+         this.scammer1,
+         this.scammer2,
+         this.fundAddress
       ] = await ethers.getSigners();
 
       this.strategyManager = await deployProxy('MemeStrategyManager');
@@ -87,7 +90,6 @@ describe('MemeMarketplace', function () {
 
       expect(newNFTValue - oldNFTValue).to.equal(1);
       expect(newETHValue - oldETHValue).to.greaterThan(0.97);
-
    })
 
    it ('mint Meme1155 and add collection to marketplace', async function () {
@@ -139,6 +141,151 @@ describe('MemeMarketplace', function () {
 
       expect(newNFTValue - oldNFTValue).to.equal(5);
       expect(newETHValue - oldETHValue).to.greaterThan(4.8);
+   })
+
+   it ('set different mint price and accept offer', async function () {
+      await this.marketplace.setMeme721Price(BigInt(2 * 10 ** 15));
+      await this.marketplace.setMeme1155Price(BigInt(2 * 10 ** 15));
+
+      await expect(
+         this.marketplace.connect(this.minter2).mintMeme721([tokenURI], {value: BigInt(10**15)})
+      ).to.be.revertedWith('not enough money');
+
+      await this.marketplace.connect(this.minter2).mintMeme721([tokenURI], {value: BigInt(2 * 10**15)});
+
+      await expect(
+         this.marketplace.connect(this.bider2).mintMeme1155(tokenURI, 20, {value: BigInt(20 * 10**15)})
+      ).to.be.revertedWith('not enough money');
+
+      await this.marketplace.connect(this.bider2).mintMeme1155(tokenURI, 20, {value: BigInt(20 * 2 * 10**15)});
+
+      // send WETH to minter2
+      await this.WETH.transfer(this.bider2.address, bigNum(10));
+
+      await this.Meme721.connect(this.minter2).setApprovalForAll(this.ERC721Manager.address, true);
+      await this.Meme1155.connect(this.bider2).setApprovalForAll(this.ERC1155Manager.address, true);
+
+      const makeOrder = {
+         maker: this.minter2.address,
+         tokenAddress: this.Meme721.address,
+         tokenID: 1,
+         price: bigNum(4),
+         tokenAmount: 1,
+         isETH: false
+      };
+
+      const takerOrder = {
+         maker: this.bider2.address,
+         tokenAddress: this.Meme1155.address,
+         tokenID: 1,
+         price: 0,
+         tokenAmount: 10,
+         isETH: false
+      };
+
+      const signedMakeOrder = await signMakeOrder(
+         this.minter2,
+         this.marketplace.address,
+         makeOrder
+      );
+
+      const signedTakerOrder = await signMakeOrder(
+         this.bider2,
+         this.marketplace.address,
+         takerOrder
+      );
+
+      const oldWETHBal = smallNum(await this.WETH.balanceOf(this.minter2.address));
+      const oldMeme1155Bal = await this.Meme1155.balanceOf(this.minter2.address, 1);
+      const oldMeme721Bal = await this.Meme721.balanceOf(this.bider2.address);
+
+      await this.WETH.connect(this.bider2).approve(this.marketplace.address, bigNum(10));
+      await this.marketplace.connect(this.bider2).acceptOffer(signedMakeOrder, signedTakerOrder);
+
+      const newWETHBal = smallNum(await this.WETH.balanceOf(this.minter2.address));
+      const newMeme1155Bal = await this.Meme1155.balanceOf(this.minter2.address, 1);
+      const newMeme721Bal = await this.Meme721.balanceOf(this.bider2.address);
+
+      expect(newWETHBal - oldWETHBal).to.greaterThan(3.9);
+      expect(newMeme1155Bal - oldMeme1155Bal).to.equal(10);
+      expect(newMeme721Bal - oldMeme721Bal).to.equal(1);
+   })
+
+   it ('match auction', async function () {
+      const makeOrder = {
+         maker: this.bider1.address,
+         tokenAddress: this.Meme721.address,
+         tokenID: 0,
+         price: bigNum(1),
+         tokenAmount: 1,
+         isETH: false
+      };
+
+      const signedMakeOrder = await signMakeOrder(
+         this.bider1,
+         this.marketplace.address,
+         makeOrder
+      );
+
+      // send WETH to minter2
+      await this.WETH.transfer(this.minter1.address, bigNum(10));
+
+      let oldETHValue = smallNum(await this.WETH.balanceOf(this.bider1.address));
+      let oldNFTValue = await this.Meme721.balanceOf(this.minter1.address);
+
+      await this.marketplace.removeCollection(
+         this.Meme721.address,
+         [0]
+      );
+
+      await this.WETH.connect(this.minter1).approve(this.marketplace.address, bigNum(10));
+      await this.Meme721.connect(this.bider1).setApprovalForAll(this.ERC721Manager.address, true);
+
+      await expect(
+         this.marketplace.connect(this.minter1).matchAuction(
+            signedMakeOrder
+         )
+      ).to.be.revertedWith('not added token');
+
+      await expect(
+         this.marketplace.addCollection(
+            this.minter1.address,
+            this.Meme721.address,
+            [0]
+         )
+      ).to.be.revertedWith('wrong user');
+
+      await this.marketplace.connect(this.bider1).addCollection(
+         this.bider1.address,
+         this.Meme721.address,
+         [0]
+      );
+
+      await this.marketplace.setRoyalty(10 ** 3);
+
+      await this.marketplace.connect(this.minter1).matchAuction(
+         signedMakeOrder
+      );
+
+      let newETHValue = smallNum(await this.WETH.balanceOf(this.bider1.address));
+      let newNFTValue = await this.Meme721.balanceOf(this.minter1.address);
+
+      expect(newNFTValue - oldNFTValue).to.equal(1);
+      expect(newETHValue - oldETHValue).to.greaterThan(0.97);
+   })
+
+   it ('set fund address and withdraw', async function () {
+      await this.marketplace.connect(this.multisig).setFundAddress(this.fundAddress.address);
+      const oldETHBal = smallNum(await ethers.provider.getBalance(this.fundAddress.address));
+      const oldWETHBal = smallNum(await this.WETH.balanceOf(this.fundAddress.address));
+
+      await this.marketplace.withDraw();
+
+      const newETHBal = smallNum(await ethers.provider.getBalance(this.fundAddress.address));
+      const newWETHBal = smallNum(await this.WETH.balanceOf(this.fundAddress.address));
+
+      expect(newETHBal - oldETHBal).to.greaterThanOrEqual(0.18);
+      expect(newWETHBal - oldWETHBal).to.greaterThanOrEqual(0.1);
    })
 
 })
